@@ -8,7 +8,7 @@ from data_prep import DataPrep, Vec2Img
 
 class VAE(tf.keras.Model):
     """
-    Convolutional Variational Autoencoder;
+    Variational Autoencoder;
     It provides methods for developing encoder/decoder
     """
 
