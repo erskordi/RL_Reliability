@@ -22,13 +22,16 @@ class DataPrep(object):
                  step=None,
                  num_settings=3,
                  num_sensors=21,
-                 num_units=100) -> None:
+                 num_units=100,
+                 normalization_type="01") -> None:
         super().__init__()
         self.file = file
         self.step = step
         self.num_settings = num_settings
         self.num_sensors = num_sensors
         self.num_units = num_units
+
+        self.normalization_type = normalization_type
 
     def ReadData(self) -> DataFrame:
         df = pd.read_table(self.file, header=None, sep="\s+")
@@ -67,7 +70,10 @@ class DataPrep(object):
         df.drop(cols_to_drop, axis=1)
 
     def _FeatureStandardize(self, df) -> DataFrame:
-        normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.mean(x))/np.std(x), axis=0)
+        if self.normalization_type == "01":
+            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0)
+        else:
+            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.mean(x))/np.std(x), axis=0)
 
         return normalized_values
 
@@ -136,7 +142,8 @@ if __name__ == "__main__":
                     num_settings=num_settings, 
                     num_sensors=num_sensors, 
                     num_units=num_units, 
-                    step=step)
+                    step=step,
+                    normalization_type="01")
     
     df = data.ReadData()
     
