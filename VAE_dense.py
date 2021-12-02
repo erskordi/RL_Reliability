@@ -38,12 +38,18 @@ class VAE(tf.keras.Model):
     def Encoder(self, neurons) -> tf.keras.Model:
 
         encoder_inputs = tf.keras.Input(shape=(self.image_size,))
-        x = tf.keras.layers.Dense(neurons[0], activation='relu', name="dense_layer_1")(encoder_inputs)
-        x = tf.keras.layers.Dense(neurons[1], activation='relu', name="dense_layer_2")(x)
-        z = tf.keras.layers.Dense(neurons[2], activation='relu', name="dense_layer_final")(x)
+        x = encoder_inputs
 
-        x_mean = tf.keras.layers.Dense(self.latent_dim, name="x_mean")(z)
-        x_logvar = tf.keras.layers.Dense(self.latent_dim, name="x_logvar")(z)
+        for i in range(len(neurons)):
+            if i == 0:
+                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
+            elif (i > 0) & (i <= len(neurons)):
+                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
+            else:
+                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_final")(x)
+        
+        x_mean = tf.keras.layers.Dense(self.latent_dim, name="x_mean")(encoder_inputs)
+        x_logvar = tf.keras.layers.Dense(self.latent_dim, name="x_logvar")(encoder_inputs)
         x = self.Sampling([x_mean, x_logvar])
 
         self.encoder = tf.keras.Model(encoder_inputs, [x_mean, x_logvar, x], name="encoder")
@@ -54,13 +60,17 @@ class VAE(tf.keras.Model):
     def Decoder(self, neurons) -> tf.keras.Model:
 
         latent_inputs = tf.keras.Input(shape=(self.latent_dim,))
-        x = tf.keras.layers.Dense(neurons[2], activation='relu', name="latent_layer")(latent_inputs)
-        x = tf.keras.layers.Dense(neurons[1], activation='relu', name="dense_layer_out_2")(x)
-        x = tf.keras.layers.Dense(neurons[0], activation=None, name="dense_layer_out_1")(x)
+        x = latent_inputs
+
+        for i in range(len(neurons)-1,0,-1):
+            if i == len(neurons) - 1:
+                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="latent_layer")(x)
+            else:
+                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
         decoder_outputs = tf.keras.layers.Dense(self.image_size, activation="sigmoid", name="decoder_output")(x)
 
         self.decoder = tf.keras.Model(latent_inputs, decoder_outputs, name="decoder")
-        self.decoder.summary()
+        #self.decoder.summary()
 
         return self.decoder
 
@@ -81,6 +91,7 @@ class VAE(tf.keras.Model):
         self.total_loss_tracker.update_state(total_loss)
         self.reconstruction_loss_tracker.update_state(reconstruction_loss)
         self.kl_loss_tracker.update_state(kl_loss)
+        
 
         return {
             "loss": self.total_loss_tracker.result(),
@@ -97,7 +108,7 @@ if __name__ == "__main__":
     num_units = 100
     step = "VAE"
 
-    neurons = [32, 16, 8]
+    neurons = [64, 32, 16, 8]
 
     # Data prep
     data = DataPrep(file=file_path,
@@ -113,9 +124,9 @@ if __name__ == "__main__":
     encoder = n.Encoder(neurons)
     decoder = n.Decoder(neurons)
     n.compile(optimizer=tf.keras.optimizers.Adam())
-    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=30, batch_size=32)
+    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=30, batch_size=4)
 
+    
     # Save decoder to use later as RL environment
-    decoder.save('saved_models/environment.h5')
-
+    decoder.save_weights('saved_models/environment')
 
