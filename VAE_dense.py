@@ -91,7 +91,6 @@ class VAE(tf.keras.Model):
         self.total_loss_tracker.update_state(total_loss)
         self.reconstruction_loss_tracker.update_state(reconstruction_loss)
         self.kl_loss_tracker.update_state(kl_loss)
-        
 
         return {
             "loss": self.total_loss_tracker.result(),
@@ -99,6 +98,11 @@ class VAE(tf.keras.Model):
             "kl_loss": self.kl_loss_tracker.result()
         }
 
+    def save_decoder(self):
+        self.decoder.save('saved_models/environment')
+
+def get_model():
+    return VAE(latent_dim=1,image_size=25)
 
 if __name__ == "__main__":
 
@@ -120,13 +124,13 @@ if __name__ == "__main__":
     
     df = data.ReadData()
     
-    n = VAE(latent_dim=1,image_size=25)
+    n = get_model()
     encoder = n.Encoder(neurons)
     decoder = n.Decoder(neurons)
+    decoder.compile()
     n.compile(optimizer=tf.keras.optimizers.Adam())
-    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=30, batch_size=4)
-
+    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=2, batch_size=4)
     
     # Save decoder to use later as RL environment
-    decoder.save_weights('saved_models/environment')
+    n.save_decoder()
 
