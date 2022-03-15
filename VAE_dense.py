@@ -98,8 +98,9 @@ class VAE(tf.keras.Model):
             "kl_loss": self.kl_loss_tracker.result()
         }
 
-    def save_decoder(self, decoder):
-        decoder.save('saved_models/environment')
+    def save_models(self, encoder, decoder):
+        encoder.save('saved_models/encoder')
+        decoder.save('saved_models/decoder')
 
 def get_model():
     return VAE(latent_dim=1,image_size=25)
@@ -132,5 +133,5 @@ if __name__ == "__main__":
     n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=2, batch_size=4)
     
     # Save decoder to use later as RL environment
-    n.save_decoder(decoder)
+    n.save_models(encoder, decoder)
 

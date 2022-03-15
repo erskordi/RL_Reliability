@@ -1,3 +1,4 @@
+from operator import index
 import numpy as np
 import pandas as pd
 from itertools import chain
@@ -40,9 +41,11 @@ class DataPrep(object):
         if self.step == "VAE":
             df = df[df[column_names[0]] <= self.num_units]
         elif self.step == "RL":
-            df = df[df[column_names[0]] > self.num_units & df[column_names[0]] >= 2*self.num_units]
+            df = df[(df[column_names[0]] > self.num_units) & (df[column_names[0]] <= 2*self.num_units)]
+            df = df.reset_index(drop=True) # Necessary for setting index back to 0
         else:
             df = df[df[column_names[0]] > 2*self.num_units]
+            df = df.reset_index(drop=True) # Necessary for setting index back to 0
         RunTimes = self._UnitRunTime(df, column_names)
         self._FeatureSelection(df)
         normalized_values = self._FeatureStandardize(df)
@@ -80,11 +83,19 @@ class DataPrep(object):
     def _TimeNormalize(self, df, run_times) -> DataFrame:
         normalized_time = []
 
+        if self.step == "VAE":
+            units_cntr = 0
+        elif self.step == "RL":
+            units_cntr = self.num_units
+        else:
+            units_cntr = 2*self.num_units
+
         cntr = 0
+
         for i in range(1,len(run_times)+1):
-            chunk = list(df['Time'][cntr:cntr+run_times[i]]/run_times[i])
+            chunk = list(df['Time'][cntr:cntr+run_times[units_cntr+i]]/run_times[units_cntr+i])
             normalized_time.append(chunk[len(chunk)-1::-1])
-            cntr += run_times[i]
+            cntr += run_times[units_cntr+i]
         normalized_time = list(chain(*normalized_time))
         normalized_time = pd.DataFrame(normalized_time, columns=['NormTime'])
 
@@ -146,6 +157,7 @@ if __name__ == "__main__":
                     normalization_type="01")
     
     df = data.ReadData()
+    print(df.columns)
     
     image_data = Vec2Img(df=df,
                          data=data,
