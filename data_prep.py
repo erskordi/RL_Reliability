@@ -4,7 +4,7 @@ import pandas as pd
 from itertools import chain
 from pandas.core.frame import DataFrame
 
-from pyts.image import MarkovTransitionField
+#from pyts.image import MarkovTransitionField
 import matplotlib.pyplot as plt
 
 class DataPrep(object):

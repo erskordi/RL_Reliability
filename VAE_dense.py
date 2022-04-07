@@ -1,3 +1,6 @@
+from gc import callbacks
+from tabnanny import verbose
+import os
 import numpy as np
 import tensorflow as tf
 
@@ -23,6 +26,9 @@ class VAE(tf.keras.Model):
         self.total_loss_tracker = tf.keras.metrics.Mean(name="Total loss")
         self.reconstruction_loss_tracker = tf.keras.metrics.Mean(name="Reconstruction loss")
         self.kl_loss_tracker = tf.keras.metrics.Mean(name="KL loss")
+
+        # Load options
+        self.save_options = tf.saved_model.SaveOptions(experimental_io_device='/job:localhost')
     
     def Sampling(self, inputs) -> np.ndarray:
         """
@@ -78,6 +84,7 @@ class VAE(tf.keras.Model):
     def metrics(self) -> list:
         return [self.total_loss_tracker, self.reconstruction_loss_tracker, self.kl_loss_tracker]
 
+    @tf.function
     def train_step(self, data) -> dict:
         with tf.GradientTape() as tape:
             x_mean, x_logvar, x = self.encoder(data)
@@ -99,8 +106,11 @@ class VAE(tf.keras.Model):
         }
 
     def save_models(self, encoder, decoder):
-        encoder.save('saved_models/encoder')
-        decoder.save('saved_models/decoder')
+        #encoder.save('saved_models/encoder')
+        decoder.save('./saved_models/decoder.h5', options=self.save_options)
+
+    def load_models(self):
+        return tf.keras.models.load_model('saved_models/decoder.h5', compile=False, options=self.save_options)
 
 def get_model():
     return VAE(latent_dim=1,image_size=25)
@@ -130,7 +140,11 @@ if __name__ == "__main__":
     decoder = n.Decoder(neurons)
     decoder.compile()
     n.compile(optimizer=tf.keras.optimizers.Adam())
-    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=2, batch_size=4)
+
+    checkpoint_path = 'saved_models/training/cp.ckpt'
+    checkpoint_dir = os.path.dirname(checkpoint_path)
+    cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True,verbose=1)
+    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=2, batch_size=4, callbacks=[cp_callback])
     
     # Save decoder to use later as RL environment
     n.save_models(encoder, decoder)

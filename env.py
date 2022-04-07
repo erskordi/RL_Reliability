@@ -5,6 +5,7 @@ from tensorflow.python.ops.gen_array_ops import shape
 from sklearn.metrics import mean_squared_error
 
 from data_prep import DataPrep, Vec2Img
+from VAE_dense import *
 
 
 class CMAPSSEnv(gym.Env):
@@ -13,12 +14,13 @@ class CMAPSSEnv(gym.Env):
                  timestep,
                  obs_size=24,
                  engines=100,
-                 engine_lives=[]) -> None:
+                 engine_lives=[],
+                 decoder_model=None) -> None:
         super().__init__()
         self.obs_size = obs_size
 
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(self.obs_size+1,self.obs_size+1,1)) # observations + RUL
-        self.action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,)) # latent x -> based on mu, sigma coming from sampling layer; here we want the policy to retrieve that value
+        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(self.obs_size,)) # observations + RUL
+        self.action_space = gym.spaces.Box(low=0, high=10, shape=(1,)) # latent x -> based on mu, sigma coming from sampling layer; here we want the policy to retrieve that value
 
         self.df = df
 
@@ -27,10 +29,13 @@ class CMAPSSEnv(gym.Env):
         self.timestep = timestep
 
         # Load trained models
-        self.encoder, self.decoder = self._call_models()
+        self.decoder = decoder_model
+        print(self.decoder.summary())
 
     def reset(self):
-        init_state = self.df.iloc[self.timestep,1:]
+        self.timestep = 0
+        init_state = self.df.iloc[self.timestep,1:].to_numpy()
+        #print(f'Initial state: {init_state}, dimensions: {init_state.shape}')
         
         return init_state # returns the very first observation
 
@@ -53,9 +58,6 @@ class CMAPSSEnv(gym.Env):
 
     def render(self) -> None:
         pass
-
-    def _call_models(self):
-        return (tf.keras.models.load_model('saved_models/encoder'), tf.keras.models.load_model('saved_models/decoder'))
 
     def _reward(self, y_true, y_pred):
         return -mean_squared_error(y_true, y_pred, squared=False)
@@ -86,9 +88,22 @@ if __name__ == "__main__":
     engine_lives = engine_lives.tolist()
     num_engines = len(engine_lives)
 
+    # Load decoder
+    vae = VAE(latent_dim=1,image_size=25)
 
     ##########################################
-    env = CMAPSSEnv(df=df, obs_size=num_settings+num_settings+1, timestep=0, engines=num_engines, engine_lives=engine_lives)
+    env_config = {
+        "df": df,
+        "timestep": 0,
+        "obs_size": num_settings+num_sensors+1,
+        "engines": num_engines,
+        "engine_lives": engine_lives, 
+        "decoder_model": vae.load_models(),
+    }
+
+    print("env_config: ", env_config)
+
+    env = CMAPSSEnv(**env_config)
     env.reset()
 
     total_cost = 0
