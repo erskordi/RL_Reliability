@@ -30,7 +30,6 @@ class CMAPSSEnv(gym.Env):
 
         # Load trained models
         self.decoder = decoder_model
-        print(self.decoder.summary())
 
     def reset(self):
         self.timestep = 0
@@ -43,16 +42,15 @@ class CMAPSSEnv(gym.Env):
 
         done = False
 
-        self.timestep += 1
-
         #mu, sigma, x = encoder.predict()
         new_state = self.df.iloc[self.timestep,1:]
         reconstruction = self.decoder.predict(action)
         reward = self._reward(new_state.to_numpy(), reconstruction[0])
+
+        self.timestep += 1
         
         if self.timestep == np.sum(self.engine_lives):
             done = True
-        
         
         return new_state, reward, done, {}
 
@@ -68,7 +66,7 @@ if __name__ == "__main__":
     file_path = "CMAPSSData/train_FD002.txt"
     num_settings = 3
     num_sensors = 21
-    num_units = 100
+    num_units = 20
     step = "RL"
 
     neurons = [64, 32, 16, 8]
@@ -117,4 +115,4 @@ if __name__ == "__main__":
                 obs, rew, done, _ = env.step(action)
                 cntr += engine_lives[eng]
                 total_cost += rew
-                print(rew, done)
+                #print(rew, done)
