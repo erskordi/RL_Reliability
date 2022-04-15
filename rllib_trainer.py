@@ -64,8 +64,6 @@ env_config = {
     "decoder_model": vae.load_models(),
 }
 
-print("env_config: ", env_config["decoder_model"].summary())
-
 env_name = "CMAPSS_env"
 register_env(env_name, lambda cofig: CMAPSSEnv(**env_config))
 

@@ -2,11 +2,39 @@ from gc import callbacks
 from tabnanny import verbose
 import os
 import numpy as np
+import pickle
 import tensorflow as tf
+
+from tensorflow.python.keras.layers import deserialize, serialize
+from tensorflow.python.keras.saving import saving_utils
 
 from itertools import chain
 
 from data_prep import DataPrep, Vec2Img
+
+def unpack(model, training_config, weights):
+    restored_model = deserialize(model)
+    if training_config is not None:
+        restored_model.compile(
+            **saving_utils.compile_args_from_training_config(
+                training_config
+            )
+        )
+    restored_model.set_weights(weights)
+    return restored_model
+
+# Hotfix function
+def make_keras_picklable():
+
+    def __reduce__(self):
+        model_metadata = saving_utils.model_metadata(self)
+        training_config = model_metadata.get("training_config", None)
+        model = serialize(self)
+        weights = self.get_weights()
+        return (unpack, (model, training_config, weights))
+
+    cls = tf.keras.Model
+    cls.__reduce__ = __reduce__
 
 
 class VAE(tf.keras.Model):
@@ -112,7 +140,10 @@ class VAE(tf.keras.Model):
         decoder.save('./saved_models/decoder.h5', options=self.save_options)
 
     def load_models(self):
-        return tf.keras.models.load_model('saved_models/decoder.h5', compile=False, options=self.save_options)
+        decoder = tf.keras.models.load_model('saved_models/decoder.h5', compile=False, options=self.save_options)
+        with open('model.pkl', 'wb') as f:
+            pickle.dump(decoder, f)
+        return decoder
 
 def get_model():
     return VAE(latent_dim=1,image_size=25)

@@ -1,5 +1,6 @@
 import gym
 import numpy as np
+import pickle
 import tensorflow as tf
 from tensorflow.python.ops.gen_array_ops import shape
 from sklearn.metrics import mean_squared_error
@@ -29,7 +30,9 @@ class CMAPSSEnv(gym.Env):
         self.timestep = timestep
 
         # Load trained models
-        self.decoder = decoder_model
+        #self.decoder = decoder_model
+        with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/model.pkl', 'rb') as f:
+            self.decoder = pickle.load(f)
 
     def reset(self):
         self.timestep = 0
