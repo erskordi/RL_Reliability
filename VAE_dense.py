@@ -21,6 +21,7 @@ class VAE(tf.keras.Model):
         super().__init__()
         self.latent_dim = latent_dim
         self.image_size = image_size
+        self.upper_bound = 10.0
 
         # Losses: Total loss = reconstruction_loss + KL_loss
         self.total_loss_tracker = tf.keras.metrics.Mean(name="Total loss")
@@ -54,7 +55,8 @@ class VAE(tf.keras.Model):
             else:
                 x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_final")(x)
         
-        x_mean = tf.keras.layers.Dense(self.latent_dim, name="x_mean")(encoder_inputs)
+        x_mean = tf.keras.layers.Dense(self.latent_dim, activation='sigmoid', name="x_mean")(encoder_inputs)
+        x_mean = x_mean * self.upper_bound # x is between 0 - 10
         x_logvar = tf.keras.layers.Dense(self.latent_dim, name="x_logvar")(encoder_inputs)
         x = self.Sampling([x_mean, x_logvar])
 
@@ -123,7 +125,7 @@ if __name__ == "__main__":
     num_units = 100
     step = "VAE"
 
-    neurons = [64, 32, 16, 8]
+    neurons = [256, 128, 64, 32]
 
     # Data prep
     data = DataPrep(file=file_path,
@@ -144,7 +146,7 @@ if __name__ == "__main__":
     checkpoint_path = 'saved_models/training/cp.ckpt'
     checkpoint_dir = os.path.dirname(checkpoint_path)
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True,verbose=1)
-    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=2, batch_size=4, callbacks=[cp_callback])
+    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=10, batch_size=64, callbacks=[cp_callback])
     
     # Save decoder to use later as RL environment
     n.save_models(encoder, decoder)
