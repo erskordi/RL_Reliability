@@ -1,8 +1,10 @@
 import argparse
 from json import load
 import os
+import pickle
 import sys
 
+import numpy as np
 import pandas as pd
 import tensorflow as tf
 
@@ -32,7 +34,8 @@ ray.init()
 file_path = "CMAPSSData/train_FD002.txt"
 num_settings = 3
 num_sensors = 21
-num_units = 100
+num_units = 40
+prev_step_units = 200
 step = "RL"
 
 neurons = [64, 32, 16, 8]
@@ -42,6 +45,7 @@ data = DataPrep(file=file_path,
                 num_settings=num_settings, 
                 num_sensors=num_sensors, 
                 num_units=num_units, 
+                prev_step_units=prev_step_units,
                 step=step,
                 normalization_type="01")
 
@@ -55,13 +59,16 @@ num_engines = len(engine_lives)
 # Load options
 vae = VAE(latent_dim=1,image_size=25)
 
+with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/model.pkl', 'rb') as f:
+    decoder = pickle.load(f)
+
 env_config = {
     "df": df,
     "timestep": 0,
     "obs_size": num_settings+num_sensors+1,
     "engines": num_engines,
     "engine_lives": engine_lives, 
-    "decoder_model": vae.load_models(),
+    "decoder_model": decoder,
 }
 
 env_name = "CMAPSS_env"
@@ -83,7 +90,7 @@ tune.run(
         "num_workers": args.num_cpus,
         "num_gpus": args.num_gpus,
         "log_level": args.tune_log_level,
-        "train_batch_size": 4000,
+        "train_batch_size": np.sum(engine_lives),
         "ignore_worker_failures": True,
     }
 )

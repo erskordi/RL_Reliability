@@ -30,9 +30,8 @@ class CMAPSSEnv(gym.Env):
         self.timestep = timestep
 
         # Load trained models
-        #self.decoder = decoder_model
-        with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/model.pkl', 'rb') as f:
-            self.decoder = pickle.load(f)
+        self.decoder = decoder_model
+        
 
     def reset(self):
         self.timestep = 0

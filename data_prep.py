@@ -24,6 +24,7 @@ class DataPrep(object):
                  num_settings=3,
                  num_sensors=21,
                  num_units=100,
+                 prev_step_units=100,
                  normalization_type="01") -> None:
         super().__init__()
         self.file = file
@@ -31,6 +32,7 @@ class DataPrep(object):
         self.num_settings = num_settings
         self.num_sensors = num_sensors
         self.num_units = num_units
+        self.prev_step_units = prev_step_units
 
         self.normalization_type = normalization_type
 
@@ -41,10 +43,11 @@ class DataPrep(object):
         if self.step == "VAE":
             df = df[df[column_names[0]] <= self.num_units]
         elif self.step == "RL":
-            df = df[(df[column_names[0]] > self.num_units) & (df[column_names[0]] <= 2*self.num_units)]
+            df = df[(df[column_names[0]] > self.prev_step_units) &\
+                 (df[column_names[0]] <= self.prev_step_units + self.num_units)]
             df = df.reset_index(drop=True) # Necessary for setting index back to 0
         else:
-            df = df[df[column_names[0]] > 2*self.num_units]
+            df = df[df[column_names[0]] > self.prev_step_units]
             df = df.reset_index(drop=True) # Necessary for setting index back to 0
         RunTimes = self._UnitRunTime(df, column_names)
         self._FeatureSelection(df)
@@ -85,10 +88,8 @@ class DataPrep(object):
 
         if self.step == "VAE":
             units_cntr = 0
-        elif self.step == "RL":
-            units_cntr = self.num_units
         else:
-            units_cntr = 2*self.num_units
+            units_cntr = self.prev_step_units
 
         cntr = 0
 
@@ -147,12 +148,14 @@ if __name__ == "__main__":
     num_settings = 3
     num_sensors = 21
     num_units = 100
+    prev_step_units = 0
     step = "VAE"
 
     data = DataPrep(file=file_path,
                     num_settings=num_settings, 
                     num_sensors=num_sensors, 
                     num_units=num_units, 
+                    prev_step_units=prev_step_units,
                     step=step,
                     normalization_type="01")
     

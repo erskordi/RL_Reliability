@@ -153,10 +153,10 @@ if __name__ == "__main__":
     file_path = "CMAPSSData/train_FD002.txt"
     num_settings = 3
     num_sensors = 21
-    num_units = 100
+    num_units = 200
     step = "VAE"
 
-    neurons = [256, 128, 64, 32]
+    neurons = [256, 128, 64, 32, 16, 8]
 
     # Data prep
     data = DataPrep(file=file_path,
