@@ -59,8 +59,9 @@ num_engines = len(engine_lives)
 # Load options
 vae = VAE(latent_dim=1,image_size=25)
 
-with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/model.pkl', 'rb') as f:
+with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/model_decoder.pkl', 'rb') as f:
     decoder = pickle.load(f)
+
 
 env_config = {
     "df": df,
@@ -72,7 +73,7 @@ env_config = {
 }
 
 env_name = "CMAPSS_env"
-register_env(env_name, lambda cofig: CMAPSSEnv(**env_config))
+register_env(env_name, lambda config: CMAPSSEnv(**env_config))
 
 
 ##### Run TUNE experiments #####

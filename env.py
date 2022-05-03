@@ -21,7 +21,7 @@ class CMAPSSEnv(gym.Env):
         self.obs_size = obs_size
 
         self.observation_space = gym.spaces.Box(low=0, high=1, shape=(self.obs_size,)) # observations + RUL
-        self.action_space = gym.spaces.Box(low=0, high=10, shape=(1,)) # latent x -> based on mu, sigma coming from sampling layer; here we want the policy to retrieve that value
+        self.action_space = gym.spaces.Box(low=0, high=1, shape=(1,)) # latent x -> based on mu, sigma coming from sampling layer; here we want the policy to retrieve that value
 
         self.df = df
 
@@ -38,7 +38,7 @@ class CMAPSSEnv(gym.Env):
         init_state = self.df.iloc[self.timestep,1:].to_numpy()
         #print(f'Initial state: {init_state}, dimensions: {init_state.shape}')
         
-        return init_state # returns the very first observation
+        return init_state # returns the very first observation + RUL % (here 1.000)
 
     def step(self, action):
 
@@ -60,7 +60,7 @@ class CMAPSSEnv(gym.Env):
         pass
 
     def _reward(self, y_true, y_pred):
-        return -mean_squared_error(y_true, y_pred, squared=False)
+        return - mean_squared_error(y_true, y_pred, squared=False)
 
 
 if __name__ == "__main__":

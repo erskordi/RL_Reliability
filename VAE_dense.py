@@ -10,6 +10,7 @@ from tensorflow.python.keras.saving import saving_utils
 
 from itertools import chain
 
+from config import Config
 from data_prep import DataPrep, Vec2Img
 
 def unpack(model, training_config, weights):
@@ -49,7 +50,7 @@ class VAE(tf.keras.Model):
         super().__init__()
         self.latent_dim = latent_dim
         self.image_size = image_size
-        self.upper_bound = 10.0
+        self.upper_bound = 1.0
 
         # Losses: Total loss = reconstruction_loss + KL_loss
         self.total_loss_tracker = tf.keras.metrics.Mean(name="Total loss")
@@ -136,48 +137,49 @@ class VAE(tf.keras.Model):
         }
 
     def save_models(self, encoder, decoder):
-        #encoder.save('saved_models/encoder')
+        encoder.save('./saved_models/encoder.h5', options=self.save_options)
         decoder.save('./saved_models/decoder.h5', options=self.save_options)
+        with open('model_decoder.pkl', 'wb') as f:
+            pickle.dump(decoder, f)
+        with open('model_encoder.pkl', 'wb') as f:
+            pickle.dump(encoder, f)
 
     def load_models(self):
+        encoder = tf.keras.models.load_model('saved_models/encoder.h5', compile=False, options=self.save_options)
         decoder = tf.keras.models.load_model('saved_models/decoder.h5', compile=False, options=self.save_options)
-        with open('model.pkl', 'wb') as f:
-            pickle.dump(decoder, f)
-        return decoder
+        
 
 def get_model():
     return VAE(latent_dim=1,image_size=25)
 
 if __name__ == "__main__":
 
-    file_path = "CMAPSSData/train_FD002.txt"
-    num_settings = 3
-    num_sensors = 21
-    num_units = 200
-    step = "VAE"
-
-    neurons = [256, 128, 64, 32, 16, 8]
+    const = Config()
+    neurons = const.VAE_neurons
 
     # Data prep
-    data = DataPrep(file=file_path,
-                    num_settings=num_settings, 
-                    num_sensors=num_sensors, 
-                    num_units=num_units, 
-                    step=step,
+    data = DataPrep(file = const.file_path,
+                    num_settings = const.num_settings,
+                    num_sensors = const.num_sensors,
+                    num_units = const.num_units[0],
+                    prev_step_units = const.prev_step_units[0],
+                    step = const.step[0],
                     normalization_type="01")
     
     df = data.ReadData()
+    print(f'VAE training data dimensions: {df.size}')
     
     n = get_model()
     encoder = n.Encoder(neurons)
     decoder = n.Decoder(neurons)
+    encoder.compile()
     decoder.compile()
     n.compile(optimizer=tf.keras.optimizers.Adam())
 
     checkpoint_path = 'saved_models/training/cp.ckpt'
     checkpoint_dir = os.path.dirname(checkpoint_path)
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True,verbose=1)
-    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=10, batch_size=64, callbacks=[cp_callback])
+    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=10000, batch_size=64, callbacks=[cp_callback])
     
     # Save decoder to use later as RL environment
     n.save_models(encoder, decoder)
