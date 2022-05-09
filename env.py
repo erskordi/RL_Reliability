@@ -29,12 +29,13 @@ class CMAPSSEnv(gym.Env):
         self.engine_lives = engine_lives
         self.timestep = timestep
 
+        self.indexes = self.df[self.df['NormTime'] == 1].index.tolist()
+
         # Load trained models
         self.decoder = decoder_model
         
 
     def reset(self):
-        self.timestep = 0
         init_state = self.df.iloc[self.timestep,1:].to_numpy()
         #print(f'Initial state: {init_state}, dimensions: {init_state.shape}')
         
