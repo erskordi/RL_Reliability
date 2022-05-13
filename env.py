@@ -38,7 +38,6 @@ class CMAPSSEnv(gym.Env):
 
         self.timestep = np.random.randint(sum(self.engine_lives))
         init_state = self.df.iloc[self.timestep,1:].to_numpy()
-        self.timestep += 1
         #print(f'Initial state: {init_state}, dimensions: {init_state.shape}')
         
         return init_state # returns the very first observation + RUL % (here 1.000)
@@ -47,10 +46,11 @@ class CMAPSSEnv(gym.Env):
 
         done = False
 
+        self.timestep += 1
         #mu, sigma, x = encoder.predict()
         new_state = self.decoder.predict(action)
         reward = self._reward(self.df.iloc[self.timestep,1:], new_state[0])
-        self.timestep += 1
+        
         
         if self.df['NormTime'].iloc[self.timestep] == float(0.0):
             done = True
@@ -115,6 +115,7 @@ if __name__ == "__main__":
         
         done = False
         env.reset()
+        print(env.timestep)
         cntr = 0
         s = bisect.bisect_left(np.cumsum(engine_lives), env.timestep)
         steps_to_go = abs(env.timestep - np.cumsum(engine_lives[:s+1])[-1])
@@ -126,4 +127,4 @@ if __name__ == "__main__":
             obs, rew, done, _ = env.step(action)
             total_cost += rew
             cntr += 1
-            print(cntr, rew, done)
+            #print(cntr, rew, done)
