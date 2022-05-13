@@ -179,7 +179,7 @@ if __name__ == "__main__":
     checkpoint_path = 'saved_models/training/cp.ckpt'
     checkpoint_dir = os.path.dirname(checkpoint_path)
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True,verbose=1)
-    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=10000, batch_size=64, callbacks=[cp_callback])
+    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=500, batch_size=64, callbacks=[cp_callback])
     
     # Save decoder to use later as RL environment
     n.save_models(encoder, decoder)

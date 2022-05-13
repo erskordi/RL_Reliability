@@ -1,3 +1,4 @@
+import bisect
 import gym
 import numpy as np
 import pickle
@@ -29,14 +30,15 @@ class CMAPSSEnv(gym.Env):
         self.engine_lives = engine_lives
         self.timestep = timestep
 
-        self.indexes = self.df[self.df['NormTime'] == 1].index.tolist()
-
         # Load trained models
         self.decoder = decoder_model
         
 
     def reset(self):
+
+        self.timestep = np.random.randint(sum(self.engine_lives))
         init_state = self.df.iloc[self.timestep,1:].to_numpy()
+        self.timestep += 1
         #print(f'Initial state: {init_state}, dimensions: {init_state.shape}')
         
         return init_state # returns the very first observation + RUL % (here 1.000)
@@ -46,13 +48,11 @@ class CMAPSSEnv(gym.Env):
         done = False
 
         #mu, sigma, x = encoder.predict()
-        new_state = self.df.iloc[self.timestep,1:]
-        reconstruction = self.decoder.predict(action)
-        reward = self._reward(new_state.to_numpy(), reconstruction[0])
-
+        new_state = self.decoder.predict(action)
+        reward = self._reward(self.df.iloc[self.timestep,1:], new_state[0])
         self.timestep += 1
         
-        if self.timestep == np.sum(self.engine_lives):
+        if self.df['NormTime'].iloc[self.timestep] == float(0.0):
             done = True
         
         return new_state, reward, done, {}
@@ -90,7 +90,8 @@ if __name__ == "__main__":
     num_engines = len(engine_lives)
 
     # Load decoder
-    vae = VAE(latent_dim=1,image_size=25)
+    with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/model_decoder.pkl', 'rb') as f:
+        decoder = pickle.load(f)
 
     ##########################################
     env_config = {
@@ -99,23 +100,30 @@ if __name__ == "__main__":
         "obs_size": num_settings+num_sensors+1,
         "engines": num_engines,
         "engine_lives": engine_lives, 
-        "decoder_model": vae.load_models(),
+        "decoder_model": decoder,
     }
 
     print("env_config: ", env_config)
 
     env = CMAPSSEnv(**env_config)
-    env.reset()
+    
 
     total_cost = 0
-    done = False
+    
 
-    while not done:
+    for _ in range(1):
+        
+        done = False
+        env.reset()
         cntr = 0
-        for eng in range(num_engines):
-            for t in range(engine_lives[eng]):
-                action = env.action_space.sample()
-                obs, rew, done, _ = env.step(action)
-                cntr += engine_lives[eng]
-                total_cost += rew
-                #print(rew, done)
+        s = bisect.bisect_left(np.cumsum(engine_lives), env.timestep)
+        steps_to_go = abs(env.timestep - np.cumsum(engine_lives[:s+1])[-1])
+        print(f'Current step: {env.timestep}, \
+            System: {s}, System life: {engine_lives[s]}, Steps until failure: {steps_to_go}')
+        
+        while not done:
+            action = env.action_space.sample()
+            obs, rew, done, _ = env.step(action)
+            total_cost += rew
+            cntr += 1
+            print(cntr, rew, done)

@@ -1,4 +1,5 @@
 from operator import index
+import copy
 import numpy as np
 import pandas as pd
 from itertools import chain
@@ -92,7 +93,8 @@ class DataPrep(object):
             units_cntr = self.prev_step_units
 
         cntr = 0
-
+        df['Time'] -= 1
+        
         for i in range(1,len(run_times)+1):
             chunk = list(df['Time'][cntr:cntr+run_times[units_cntr+i]]/run_times[units_cntr+i])
             normalized_time.append(chunk[len(chunk)-1::-1])
@@ -147,7 +149,7 @@ if __name__ == "__main__":
     file_path = "CMAPSSData/train_FD002.txt"
     num_settings = 3
     num_sensors = 21
-    num_units = 100
+    num_units = 1
     prev_step_units = 0
     step = "VAE"
 
@@ -160,7 +162,7 @@ if __name__ == "__main__":
                     normalization_type="01")
     
     df = data.ReadData()
-    print(df.columns)
+    print(df.NormTime)
     
     image_data = Vec2Img(df=df,
                          data=data,
