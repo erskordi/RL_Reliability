@@ -57,11 +57,10 @@ engine_lives = engine_lives.tolist()
 num_engines = len(engine_lives)
 
 # Load options
-vae = VAE(latent_dim=1,image_size=25)
+#vae = VAE(latent_dim=1,image_size=25)
 
-with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/model_decoder.pkl', 'rb') as f:
+with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/decoder.pkl', 'rb') as f:
     decoder = pickle.load(f)
-
 
 env_config = {
     "df": df,
@@ -69,7 +68,7 @@ env_config = {
     "obs_size": num_settings+num_sensors+1,
     "engines": num_engines,
     "engine_lives": engine_lives, 
-    "decoder_model": decoder,
+    "model": decoder,
 }
 
 env_name = "CMAPSS_env"
@@ -91,7 +90,7 @@ tune.run(
         "num_workers": args.num_cpus,
         "num_gpus": args.num_gpus,
         "log_level": args.tune_log_level,
-        "train_batch_size": np.sum(engine_lives),
+        #"train_batch_size": np.sum(engine_lives),
         "ignore_worker_failures": True,
     }
 )

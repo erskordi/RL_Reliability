@@ -9,3 +9,7 @@ class Config(object):
         self.prev_step_units = [0, 200, 240]
         self.step = ["VAE", "RL", "EVAL"]
         self.VAE_neurons = [256, 128, 64]
+
+        # Parameters for VAEs
+        self.latent_dim = 1
+        self.image_size = 25

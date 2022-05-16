@@ -17,7 +17,7 @@ class CMAPSSEnv(gym.Env):
                  obs_size=24,
                  engines=100,
                  engine_lives=[],
-                 decoder_model=None) -> None:
+                 model=None) -> None:
         super().__init__()
         self.obs_size = obs_size
 
@@ -31,7 +31,7 @@ class CMAPSSEnv(gym.Env):
         self.timestep = timestep
 
         # Load trained models
-        self.decoder = decoder_model
+        self.model = model
         
 
     def reset(self):
@@ -45,17 +45,17 @@ class CMAPSSEnv(gym.Env):
     def step(self, action):
 
         done = False
-
         self.timestep += 1
-        #mu, sigma, x = encoder.predict()
-        new_state = self.decoder.predict(action)
-        reward = self._reward(self.df.iloc[self.timestep,1:], new_state[0])
         
+
+        #mu, sigma, x = encoder.predict()
+        new_state = self.model.predict(action)
+        reward = self._reward(self.df.iloc[self.timestep,1:], new_state[0])
         
         if self.df['NormTime'].iloc[self.timestep] == float(0.0):
             done = True
         
-        return new_state, reward, done, {}
+        return new_state[0], reward, done, {}
 
     def render(self) -> None:
         pass
@@ -119,7 +119,8 @@ if __name__ == "__main__":
         cntr = 0
         s = bisect.bisect_left(np.cumsum(engine_lives), env.timestep)
         steps_to_go = abs(env.timestep - np.cumsum(engine_lives[:s+1])[-1])
-        print(f'Current step: {env.timestep}, \
+        current_step = abs(engine_lives[s] - steps_to_go)
+        print(f'Current step: {current_step}, \
             System: {s}, System life: {engine_lives[s]}, Steps until failure: {steps_to_go}')
         
         while not done:
@@ -127,4 +128,4 @@ if __name__ == "__main__":
             obs, rew, done, _ = env.step(action)
             total_cost += rew
             cntr += 1
-            #print(cntr, rew, done)
+            print(cntr, rew, done)

@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 import tensorflow as tf
 
+from tensorflow import keras
 from tensorflow.python.keras.layers import deserialize, serialize
 from tensorflow.python.keras.saving import saving_utils
 
@@ -37,30 +38,10 @@ def make_keras_picklable():
     cls = tf.keras.Model
     cls.__reduce__ = __reduce__
 
+class Sampling(tf.keras.layers.Layer):
+    """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
 
-class VAE(tf.keras.Model):
-    """
-    Variational Autoencoder;
-    It provides methods for developing encoder/decoder
-    """
-
-    def __init__(self, 
-                 latent_dim=2,
-                 image_size=21) -> None:
-        super().__init__()
-        self.latent_dim = latent_dim
-        self.image_size = image_size
-        self.upper_bound = 1.0
-
-        # Losses: Total loss = reconstruction_loss + KL_loss
-        self.total_loss_tracker = tf.keras.metrics.Mean(name="Total loss")
-        self.reconstruction_loss_tracker = tf.keras.metrics.Mean(name="Reconstruction loss")
-        self.kl_loss_tracker = tf.keras.metrics.Mean(name="KL loss")
-
-        # Load options
-        self.save_options = tf.saved_model.SaveOptions(experimental_io_device='/job:localhost')
-    
-    def Sampling(self, inputs) -> np.ndarray:
+    def call(self, inputs):
         """
         Returns latent x using reparameterization trick (x = mu + sigma*epsilon)
         """
@@ -71,45 +52,26 @@ class VAE(tf.keras.Model):
 
         return x_mean + tf.exp(0.5 * x_logvar) * epsilon
 
-    def Encoder(self, neurons) -> tf.keras.Model:
 
-        encoder_inputs = tf.keras.Input(shape=(self.image_size,))
-        x = encoder_inputs
+class VAE(tf.keras.Model):
+    """
+    Variational Autoencoder;
+    """
 
-        for i in range(len(neurons)):
-            if i == 0:
-                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
-            elif (i > 0) & (i <= len(neurons)):
-                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
-            else:
-                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_final")(x)
-        
-        x_mean = tf.keras.layers.Dense(self.latent_dim, activation='sigmoid', name="x_mean")(encoder_inputs)
-        x_mean = x_mean * self.upper_bound # x is between 0 - 10
-        x_logvar = tf.keras.layers.Dense(self.latent_dim, name="x_logvar")(encoder_inputs)
-        x = self.Sampling([x_mean, x_logvar])
+    def __init__(self, 
+                 encoder=None,
+                 decoder=None) -> None:
+        super(VAE, self).__init__()
+        self.encoder = encoder
+        self.decoder = decoder
 
-        self.encoder = tf.keras.Model(encoder_inputs, [x_mean, x_logvar, x], name="encoder")
-        #self.encoder.summary()
+        # Losses: Total loss = reconstruction_loss + KL_loss
+        self.total_loss_tracker = tf.keras.metrics.Mean(name="Total loss")
+        self.reconstruction_loss_tracker = tf.keras.metrics.Mean(name="Reconstruction loss")
+        self.kl_loss_tracker = tf.keras.metrics.Mean(name="KL loss")
 
-        return self.encoder
-
-    def Decoder(self, neurons) -> tf.keras.Model:
-
-        latent_inputs = tf.keras.Input(shape=(self.latent_dim,))
-        x = latent_inputs
-
-        for i in range(len(neurons)-1,0,-1):
-            if i == len(neurons) - 1:
-                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="latent_layer")(x)
-            else:
-                x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
-        decoder_outputs = tf.keras.layers.Dense(self.image_size, activation="sigmoid", name="decoder_output")(x)
-
-        self.decoder = tf.keras.Model(latent_inputs, decoder_outputs, name="decoder")
-        #self.decoder.summary()
-
-        return self.decoder
+        # Load options
+        self.save_options = tf.saved_model.SaveOptions(experimental_io_device='/job:localhost')
 
     @property
     def metrics(self) -> list:
@@ -120,7 +82,10 @@ class VAE(tf.keras.Model):
         with tf.GradientTape() as tape:
             x_mean, x_logvar, x = self.encoder(data)
             reconstruction = self.decoder(x)
-            reconstruction_loss = tf.reduce_mean(tf.reduce_sum(tf.keras.losses.binary_crossentropy(data, reconstruction), axis=-1))
+            reconstruction_loss = tf.reduce_mean(
+                tf.reduce_sum(
+                    tf.keras.losses.binary_crossentropy(data, reconstruction), axis=-1)
+                    )
             kl_loss = -.5 * (1 + x_logvar - tf.square(x_mean) - tf.exp(x_logvar))
             kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=-1))
             total_loss = reconstruction_loss + kl_loss
@@ -136,28 +101,17 @@ class VAE(tf.keras.Model):
             "kl_loss": self.kl_loss_tracker.result()
         }
 
-    def save_models(self, encoder, decoder):
-        encoder.save('./saved_models/encoder.h5', options=self.save_options)
-        decoder.save('./saved_models/decoder.h5', options=self.save_options)
-        with open('model_decoder.pkl', 'wb') as f:
-            pickle.dump(decoder, f)
-        with open('model_encoder.pkl', 'wb') as f:
-            pickle.dump(encoder, f)
-
-    def load_models(self):
-        encoder = tf.keras.models.load_model('saved_models/encoder.h5', compile=False, options=self.save_options)
-        decoder = tf.keras.models.load_model('saved_models/decoder.h5', compile=False, options=self.save_options)
-        
-
-def get_model():
-    return VAE(latent_dim=1,image_size=25)
 
 if __name__ == "__main__":
+
+    checkpoint_path = 'saved_models/training/cp.ckpt'
+    checkpoint_dir = os.path.dirname(checkpoint_path)
+    cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True,verbose=1)
 
     const = Config()
     neurons = const.VAE_neurons
 
-    # Data prep
+    # Data loading and preparation
     data = DataPrep(file = const.file_path,
                     num_settings = const.num_settings,
                     num_sensors = const.num_sensors,
@@ -167,20 +121,58 @@ if __name__ == "__main__":
                     normalization_type="01")
     
     df = data.ReadData()
-    print(f'VAE training data dimensions: {df.size}')
     
-    n = get_model()
-    encoder = n.Encoder(neurons)
-    decoder = n.Decoder(neurons)
-    encoder.compile()
-    decoder.compile()
-    n.compile(optimizer=tf.keras.optimizers.Adam())
-
-    checkpoint_path = 'saved_models/training/cp.ckpt'
-    checkpoint_dir = os.path.dirname(checkpoint_path)
-    cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True,verbose=1)
-    n.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))], epochs=500, batch_size=64, callbacks=[cp_callback])
     
-    # Save decoder to use later as RL environment
-    n.save_models(encoder, decoder)
+    # Build encoder
+    latent_dim = const.latent_dim
 
+    encoder_inputs = tf.keras.Input(shape=(const.image_size,))
+    x = encoder_inputs
+
+    for i in range(len(neurons)):
+        if i == 0:
+            x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
+        elif (i > 0) & (i <= len(neurons)):
+            x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
+        else:
+            x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_final")(x)
+    
+    x_mean = tf.keras.layers.Dense(const.latent_dim, activation='sigmoid', name="x_mean")(x)
+    x_logvar = tf.keras.layers.Dense(const.latent_dim, name="x_logvar")(x)
+    x = Sampling()([x_mean, x_logvar])
+
+    encoder = tf.keras.Model(encoder_inputs, [x_mean, x_logvar, x], name="encoder")
+    #encoder.summary()
+
+    # Build decoder
+    latent_inputs = tf.keras.Input(shape=(const.latent_dim,))
+    x = latent_inputs
+
+    for i in range(len(neurons)-1,0,-1):
+        if i == len(neurons) - 1:
+            x = tf.keras.layers.Dense(neurons[i], activation='relu', name="latent_layer")(x)
+        else:
+            x = tf.keras.layers.Dense(neurons[i], activation='relu', name="dense_layer_" + str(i))(x)
+    decoder_outputs = tf.keras.layers.Dense(const.image_size, activation="sigmoid", name="decoder_output")(x)
+
+    decoder = tf.keras.Model(latent_inputs, decoder_outputs, name="decoder")
+    #decoder.summary()
+
+    # Train VAE
+    vae = VAE(encoder, decoder)
+    vae.compile(optimizer=tf.keras.optimizers.Adam())
+    vae.fit(df[list(chain(*[['NormTime'], data.setting_measurement_names]))],\
+        epochs=100,
+        batch_size=64, 
+        callbacks=[cp_callback]
+    )
+    
+    decoder.save('./saved_models/decoder')
+    with open('decoder.pkl', 'wb') as f:
+        pickle.dump(decoder, f)
+    """
+    vae.build((None,) + (const.image_size,))
+    vae.save('./saved_models/model', save_format='tf')
+    with open('model.pkl', 'wb') as f:
+        pickle.dump(vae, f)
+    """
