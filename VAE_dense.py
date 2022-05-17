@@ -167,10 +167,16 @@ if __name__ == "__main__":
         callbacks=[cp_callback]
     )
     
+    
+    # Save models (decoder and/or encoder)
+    
+    encoder.save('./saved_models/encoder')
     decoder.save('./saved_models/decoder')
+   
+    """
     with open('decoder.pkl', 'wb') as f:
         pickle.dump(decoder, f)
-    """
+    
     vae.build((None,) + (const.image_size,))
     vae.save('./saved_models/model', save_format='tf')
     with open('model.pkl', 'wb') as f:

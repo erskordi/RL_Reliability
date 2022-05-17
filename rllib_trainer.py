@@ -12,11 +12,13 @@ import ray
 from ray.tune.registry import register_env
 from ray.rllib.agents import ppo
 from ray.rllib.models import ModelCatalog
-from ray import tune
+from ray import tune, serve
 
 from data_prep import DataPrep
 from env import CMAPSSEnv
+from tf_decoder_model import TFDecoderModel
 from VAE_dense import VAE
+
 
 ##### Command line arguments #####
 parser = argparse.ArgumentParser(description="Build RL agent")
@@ -57,10 +59,13 @@ engine_lives = engine_lives.tolist()
 num_engines = len(engine_lives)
 
 # Load options
-#vae = VAE(latent_dim=1,image_size=25)
 
-with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/decoder.pkl', 'rb') as f:
-    decoder = pickle.load(f)
+#with open('./decoder.pkl', 'rb') as f:
+    #decoder = pickle.load(f)
+    
+#decoder = tf.keras.models.load_model('./saved_models/decoder')
+serve.start()
+TFDecoderModel.deploy('./saved_models/decoder')
 
 env_config = {
     "df": df,
@@ -68,7 +73,7 @@ env_config = {
     "obs_size": num_settings+num_sensors+1,
     "engines": num_engines,
     "engine_lives": engine_lives, 
-    "model": decoder,
+    "decoder_model": None,
 }
 
 env_name = "CMAPSS_env"
