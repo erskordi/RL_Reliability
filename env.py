@@ -2,11 +2,14 @@ import bisect
 import gym
 import numpy as np
 import pickle
+import requests
 import tensorflow as tf
+
 from tensorflow.python.ops.gen_array_ops import shape
 from sklearn.metrics import mean_squared_error
 
-from data_prep import DataPrep, Vec2Img
+from data_prep import DataPrep
+from tf_decoder_model import TFDecoderModel
 from VAE_dense import *
 
 
@@ -17,7 +20,7 @@ class CMAPSSEnv(gym.Env):
                  obs_size=24,
                  engines=100,
                  engine_lives=[],
-                 model=None) -> None:
+                 decoder_model=None) -> None:
         super().__init__()
         self.obs_size = obs_size
 
@@ -31,7 +34,7 @@ class CMAPSSEnv(gym.Env):
         self.timestep = timestep
 
         # Load trained models
-        self.model = model
+        self.model = decoder_model
         
 
     def reset(self):
@@ -45,17 +48,23 @@ class CMAPSSEnv(gym.Env):
     def step(self, action):
 
         done = False
-        self.timestep += 1
         
-
         #mu, sigma, x = encoder.predict()
-        new_state = self.model.predict(action)
-        reward = self._reward(self.df.iloc[self.timestep,1:], new_state[0])
+        #new_state = self.model.predict(action)
+        
+        resp = requests.get(
+            "http://localhost:8000/saved_models", json={"array": action.tolist()}
+        )
+        new_state = resp.json()['prediction'][0]
+        
+        reward = self._reward(self.df.iloc[self.timestep,1:], new_state)
         
         if self.df['NormTime'].iloc[self.timestep] == float(0.0):
             done = True
         
-        return new_state[0], reward, done, {}
+        self.timestep += 1
+        
+        return new_state, reward, done, {}
 
     def render(self) -> None:
         pass
@@ -90,7 +99,7 @@ if __name__ == "__main__":
     num_engines = len(engine_lives)
 
     # Load decoder
-    with open('/Users/erotokritosskordilis/git-repos/RL_Reliability/model_decoder.pkl', 'rb') as f:
+    with open('./decoder.pkl', 'rb') as f:
         decoder = pickle.load(f)
 
     ##########################################
@@ -129,3 +138,4 @@ if __name__ == "__main__":
             total_cost += rew
             cntr += 1
             print(cntr, rew, done)
+        print(total_cost)
