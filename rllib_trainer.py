@@ -17,7 +17,7 @@ from ray import tune, serve
 from data_prep import DataPrep
 from env import CMAPSSEnv
 from tf_decoder_model import TFDecoderModel
-from VAE_dense import VAE
+from VAE_dense import *
 
 
 ##### Command line arguments #####
@@ -59,11 +59,6 @@ engine_lives = engine_lives.tolist()
 num_engines = len(engine_lives)
 
 # Load options
-
-#with open('./decoder.pkl', 'rb') as f:
-    #decoder = pickle.load(f)
-    
-#decoder = tf.keras.models.load_model('./saved_models/decoder')
 serve.start()
 TFDecoderModel.deploy('./saved_models/decoder')
 

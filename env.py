@@ -43,15 +43,10 @@ class CMAPSSEnv(gym.Env):
         init_state = self.df.iloc[self.timestep,1:].to_numpy()
         #print(f'Initial state: {init_state}, dimensions: {init_state.shape}')
         
-        return init_state # returns the very first observation + RUL % (here 1.000)
+        return init_state 
 
     def step(self, action):
-
-        done = False
-        
-        #mu, sigma, x = encoder.predict()
-        #new_state = self.model.predict(action)
-        
+                
         resp = requests.get(
             "http://localhost:8000/saved_models", json={"array": action.tolist()}
         )
@@ -70,27 +65,28 @@ class CMAPSSEnv(gym.Env):
         pass
 
     def _reward(self, y_true, y_pred):
-        return - mean_squared_error(y_true, y_pred, squared=False)
+        reconstruction_loss = tf.reduce_mean(
+            tf.reduce_sum(
+                tf.keras.losses.binary_crossentropy(y_true, y_pred))
+                )
+        return -reconstruction_loss
 
 
 if __name__ == "__main__":
     
-    file_path = "CMAPSSData/train_FD002.txt"
-    num_settings = 3
-    num_sensors = 21
-    num_units = 20
-    step = "RL"
-
-    neurons = [64, 32, 16, 8]
+    
+    const = Config()
+    neurons = const.VAE_neurons
 
     # Data prep
-    data = DataPrep(file=file_path,
-                    num_settings=num_settings, 
-                    num_sensors=num_sensors, 
-                    num_units=num_units, 
-                    step=step,
+    data = DataPrep(file = const.file_path,
+                    num_settings = const.num_settings,
+                    num_sensors = const.num_sensors,
+                    num_units = const.num_units[1],
+                    prev_step_units = const.prev_step_units[1],
+                    step = const.step[1],
                     normalization_type="01")
-    
+
     df = data.ReadData()
     
     # List of engine lifetimes
@@ -106,7 +102,7 @@ if __name__ == "__main__":
     env_config = {
         "df": df,
         "timestep": 0,
-        "obs_size": num_settings+num_sensors+1,
+        "obs_size": const.num_settings+const.num_sensors+1,
         "engines": num_engines,
         "engine_lives": engine_lives, 
         "decoder_model": decoder,
