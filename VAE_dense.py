@@ -14,6 +14,16 @@ from itertools import chain
 from config import Config
 from data_prep import DataPrep, Vec2Img
 
+"""
+Variatonal Autoencoder with Dense layers. Creates: Encoder, Decoder, Sampling layer.
+
+ - Reads data using DataPrep class
+ - Dimensions of inputs, outputs, layer neurons given from Config class
+ - As long as layers are regular Dense layers, users can change their size/number from Config
+
+All models (encoder, decoder, full vae) are saved in /saved_models subdirectory
+"""
+
 def loss_func(encoder_mu, encoder_log_variance):
     def vae_reconstruction_loss(y_true, y_predict):
         reconstruction_loss = tf.reduce_mean(
@@ -64,7 +74,7 @@ if __name__ == "__main__":
                     normalization_type="01")
 
     df = data.ReadData()
-
+    #print(df.shape)
 
     # Build encoder
     latent_dim = const.latent_dim
@@ -113,9 +123,13 @@ if __name__ == "__main__":
     
     # Train VAE
     x_train = df[list(chain(*[['NormTime'], data.setting_measurement_names]))]
+    #print(x_train)
+    #x_train = x_train[1:].expanding(axis=0).mean()
+    #print(x_train)
+    
     vae.compile(optimizer=tf.keras.optimizers.Adam(lr=0.0005), loss=loss_func(x_mean, x_logvar))
     vae.fit(x_train, x_train,\
-        epochs=100,
+        epochs=30,
         batch_size=64, 
         callbacks=[cp_callback]
     )
@@ -130,7 +144,6 @@ if __name__ == "__main__":
     """
     with open('decoder.pkl', 'wb') as f:
         pickle.dump(decoder, f)
-
     vae.build((None,) + (const.image_size,))
     vae.save('./saved_models/model', save_format='tf')
     with open('model.pkl', 'wb') as f:

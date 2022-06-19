@@ -54,7 +54,13 @@ class DataPrep(object):
         self._FeatureSelection(df)
         normalized_values = self._FeatureStandardize(df)
         normalized_time = self._TimeNormalize(df, RunTimes)
+
+        # Include condition column, all values zero except in system failure (turns to 1)
+        #df['Condition'] = [0 if i not in (np.cumsum(RunTimes.values)-1) else 1 for i in range(len(df))]
+
         new_df = self._FinalDF(df, normalized_time, normalized_values)
+
+        
 
         return new_df
 
@@ -66,7 +72,7 @@ class DataPrep(object):
         
         return column_names
         
-    def _UnitRunTime(self,df, column_names) -> list:
+    def _UnitRunTime(self, df, column_names) -> list:
         run_times = df.groupby([column_names[0]]).count()[column_names[1]]
 
         return run_times
@@ -78,7 +84,7 @@ class DataPrep(object):
 
     def _FeatureStandardize(self, df) -> DataFrame:
         if self.normalization_type == "01":
-            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0)
+            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0).expanding().mean()
         else:
             normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.mean(x))/np.std(x), axis=0)
 
@@ -105,6 +111,7 @@ class DataPrep(object):
         return normalized_time
 
     def _FinalDF(self, df, normalized_time, normalized_values) -> DataFrame:
+        #new_df = pd.concat([df['Unit'], df['Condition'], normalized_time, normalized_values], axis=1)
         new_df = pd.concat([df['Unit'], normalized_time, normalized_values], axis=1)
 
         return new_df
@@ -149,7 +156,7 @@ if __name__ == "__main__":
     file_path = "CMAPSSData/train_FD002.txt"
     num_settings = 3
     num_sensors = 21
-    num_units = 1
+    num_units = 20
     prev_step_units = 0
     step = "VAE"
 
@@ -162,8 +169,9 @@ if __name__ == "__main__":
                     normalization_type="01")
     
     df = data.ReadData()
-    print(df.NormTime)
+    print(df)
     
+    """
     image_data = Vec2Img(df=df,
                          data=data,
                          image_size=num_settings+num_sensors,
@@ -171,7 +179,7 @@ if __name__ == "__main__":
     
     images = image_data.Transform()
     image_data.PlotImg()
-    
+    """
     
     
 

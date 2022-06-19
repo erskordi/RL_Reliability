@@ -1,5 +1,7 @@
 import bisect
+import copy
 import gym
+import math
 import numpy as np
 import pickle
 import requests
@@ -27,8 +29,8 @@ class CMAPSSEnv(gym.Env):
         super().__init__()
         self.obs_size = obs_size
 
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(self.obs_size,)) # observations + RUL
-        self.action_space = gym.spaces.Box(low=0, high=1, shape=(1,)) # latent x -> based on mu, sigma coming from sampling layer; here we want the policy to retrieve that value
+        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(self.obs_size,)) # observations
+        self.action_space = gym.spaces.Box(low=0, high=1, shape=(2,)) # latent x -> based on mu, sigma coming from sampling layer; here we want the policy to retrieve that value
 
         self.df = df
 
@@ -38,53 +40,106 @@ class CMAPSSEnv(gym.Env):
 
         # Load trained models
         self.models = models
+
+        self.env_type = env_type
         
 
     def reset(self):
 
-        self.timestep = np.random.randint(sum(self.engine_lives))
-        init_state = self.df.iloc[self.timestep,1:].to_numpy()
-        #print(f'Initial state: {init_state}, dimensions: {init_state.shape}')
-        
-        return init_state 
+        if self.env_type == "batch":
+            self.timestep = 0
+            init_state = self.df.iloc[self.timestep,1:].tolist()
+            
+            return init_state 
+        else:
+            self.timestep = np.random.randint(sum(self.engine_lives))
+            init_state = self.df.iloc[self.timestep,1:].to_numpy()
+            
+            return init_state 
 
     def step(self, action):
 
-        done = False
+        #action = copy.copy(action)
+        #action = np.reshape(action, (2,1)).tolist()
+        #print("Action here: ", action.shape, type(action), [action.tolist()])
+        action = action.tolist()
 
-        """ Actual observation (from data) """
-        actual_obs = self.df.iloc[self.timestep,1:].tolist()
-                
-        actuals = requests.get(
-            "http://localhost:8000/saved_models", 
-            json={"array": [[actual_obs], action.tolist()]
-                } #np.random.uniform(0,1,1).tolist()
-            )
+        if self.env_type == "batch":
+            
+            done = False
 
-        """ Actual latent x from encoder """
-        actual_latent_state = actuals.json()['predictions'][0][0]
+            """ Actual observation (from data) """
+            actual_obs = self.df.iloc[self.timestep,1:].tolist()
+                    
+            actuals = requests.get(
+                "http://localhost:8000/saved_models", 
+                json={"array": [[actual_obs], [action]]
+                    } 
+                )
+            
+            """ Actual latent x from encoder """
+            actual_latent_x = actuals.json()['predictions'][0]
 
-        """ New state given action """
-        new_state = actuals.json()['predictions'][1][0]
+            """ Estimated state|action """
+            new_state = actuals.json()['predictions'][1][0]
 
-        reconstructed = requests.get(
-            "http://localhost:8000/saved_models", 
-            json={"array": [[actual_obs], actual_latent_state]
-                } #np.random.uniform(0,1,1).tolist()
-            )
+            reconstructed = requests.get(
+                "http://localhost:8000/saved_models", 
+                json={"array": [[actual_obs], actual_latent_x]
+                    } #np.random.uniform(0,1,1).tolist()
+                )
 
-        """ Reconstructed state given true X"""    
-        _ = reconstructed.json()['predictions'][0][0]
-        reconstructed_state = reconstructed.json()['predictions'][1][0]
+            """ Reconstructed state given true X"""    
+            #_ = reconstructed.json()['predictions'][0][0]
+            reconstructed_state = reconstructed.json()['predictions'][1][0]
 
-        reward = self._reward(new_state, reconstructed_state)
+            """New state excluding the RUL estimate (not part of agent training)"""
+            reward = self._reward(new_state, reconstructed_state)
+            
+            self.timestep += 1
+            
+            if self.timestep == np.sum(self.engine_lives):
+                done = True
+            
+            return new_state, reward, done, {}
         
-        self.timestep += 1
+        else:
 
-        if self.df['NormTime'].iloc[self.timestep] == float(0.0):
-            done = True
+            done = False
 
-        return new_state, reward, done, {}
+            """ Actual observation (from data) """
+            actual_obs = self.df.iloc[self.timestep,1:].tolist()
+                    
+            actuals = requests.get(
+                "http://localhost:8000/saved_models", 
+                json={"array": [[actual_obs], action.tolist()]
+                    } #np.random.uniform(0,1,1).tolist()
+                )
+
+            """ Actual latent x from encoder """
+            actual_latent_state = actuals.json()['predictions'][0][0]
+
+            """ New state given action """
+            new_state = actuals.json()['predictions'][1][0]
+
+            reconstructed = requests.get(
+                "http://localhost:8000/saved_models", 
+                json={"array": [[actual_obs], actual_latent_state]
+                    } #np.random.uniform(0,1,1).tolist()
+                )
+
+            """ Reconstructed state given true X"""    
+            _ = reconstructed.json()['predictions'][0][0]
+            reconstructed_state = reconstructed.json()['predictions'][1][0]
+
+            reward = self._reward(new_state, reconstructed_state)
+            
+            self.timestep += 1
+
+            if self.df['NormTime'].iloc[self.timestep] == float(0.0):
+                done = True
+
+            return new_state, reward, done, {}
 
     def render(self) -> None:
         env_snapshot = {
@@ -130,10 +185,10 @@ if __name__ == "__main__":
         "engines": num_engines,
         "engine_lives": engine_lives, 
         "models": [None, None],
-        "env_type": env_types[1],
+        "env_type": env_types[0],
     }
 
-    print("env_config: ", env_config)
+    #print("env_config: ", env_config)
 
     env = CMAPSSEnv(**env_config)
 
@@ -149,8 +204,8 @@ if __name__ == "__main__":
         s = bisect.bisect_left(np.cumsum(engine_lives), env.timestep)
         steps_to_go = abs(env.timestep - np.cumsum(engine_lives[:s+1])[-1]) - 1
         current_step = abs(engine_lives[s] - steps_to_go)
-        print(f'Current step: {current_step},\
-            System: {s}, System life: {engine_lives[s]}, Steps until failure: {steps_to_go}')
+        #print(f'Current step: {current_step},\
+        #    System: {s}, System life: {engine_lives[s]}, Steps until failure: {steps_to_go}')
         
 
         while True:
