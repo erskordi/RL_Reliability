@@ -49,93 +49,61 @@ class CMAPSSEnv(gym.Env):
         if self.env_type == "batch":
             self.timestep = 0
             init_state = self.df.iloc[self.timestep,1:].tolist()
+            init_state = np.array(init_state)
             
             return init_state 
         else:
             self.timestep = np.random.randint(sum(self.engine_lives))
-            init_state = self.df.iloc[self.timestep,1:].to_numpy()
+            init_state = self.df.iloc[self.timestep,1:].tolist()
+            init_state = np.array(init_state)
             
             return init_state 
 
     def step(self, action):
 
         #action = copy.copy(action)
-        #action = np.reshape(action, (2,1)).tolist()
-        #print("Action here: ", action.shape, type(action), [action.tolist()])
         action = action.tolist()
 
-        if self.env_type == "batch":
-            
-            done = False
+        done = False
 
-            """ Actual observation (from data) """
-            actual_obs = self.df.iloc[self.timestep,1:].tolist()
-                    
-            actuals = requests.get(
-                "http://localhost:8000/saved_models", 
-                json={"array": [[actual_obs], [action]]
-                    } 
-                )
-            
-            """ Actual latent x from encoder """
-            actual_latent_x = actuals.json()['predictions'][0]
+        """ Actual observation (from data) """
+        actual_obs = self.df.iloc[self.timestep,1:].tolist()
+                
+        actuals = requests.get(
+            "http://localhost:8000/saved_models", 
+            json={"array": [[actual_obs], [action]]
+                } 
+            )
+        
+        """ Actual latent x from encoder """
+        actual_latent_x = actuals.json()['predictions'][0]
 
-            """ Estimated state|action """
-            new_state = actuals.json()['predictions'][1][0]
+        """ Estimated state|action """
+        new_state = actuals.json()['predictions'][1][0]
 
-            reconstructed = requests.get(
-                "http://localhost:8000/saved_models", 
-                json={"array": [[actual_obs], actual_latent_x]
-                    } #np.random.uniform(0,1,1).tolist()
-                )
+        reconstructed = requests.get(
+            "http://localhost:8000/saved_models", 
+            json={"array": [[actual_obs], actual_latent_x]
+                } #np.random.uniform(0,1,1).tolist()
+            )
 
-            """ Reconstructed state given true X"""    
-            #_ = reconstructed.json()['predictions'][0][0]
-            reconstructed_state = reconstructed.json()['predictions'][1][0]
+        """ Reconstructed state given true X"""    
+        #_ = reconstructed.json()['predictions'][0][0]
+        reconstructed_state = reconstructed.json()['predictions'][1][0]
+        
+        """New state excluding the RUL estimate (not part of agent training)"""
+        reward = self._reward(new_state, reconstructed_state, actual_latent_x[0], action)
 
-            """New state excluding the RUL estimate (not part of agent training)"""
-            reward = self._reward(new_state, reconstructed_state)
-            
-            self.timestep += 1
-            
+        new_state = np.array(new_state)
+        
+        self.timestep += 1
+
+        if self.env_type == "batch":            
             if self.timestep == np.sum(self.engine_lives):
                 done = True
             
             return new_state, reward, done, {}
-        
         else:
-
-            done = False
-
-            """ Actual observation (from data) """
-            actual_obs = self.df.iloc[self.timestep,1:].tolist()
-                    
-            actuals = requests.get(
-                "http://localhost:8000/saved_models", 
-                json={"array": [[actual_obs], action.tolist()]
-                    } #np.random.uniform(0,1,1).tolist()
-                )
-
-            """ Actual latent x from encoder """
-            actual_latent_state = actuals.json()['predictions'][0][0]
-
-            """ New state given action """
-            new_state = actuals.json()['predictions'][1][0]
-
-            reconstructed = requests.get(
-                "http://localhost:8000/saved_models", 
-                json={"array": [[actual_obs], actual_latent_state]
-                    } #np.random.uniform(0,1,1).tolist()
-                )
-
-            """ Reconstructed state given true X"""    
-            _ = reconstructed.json()['predictions'][0][0]
-            reconstructed_state = reconstructed.json()['predictions'][1][0]
-
-            reward = self._reward(new_state, reconstructed_state)
-            
-            self.timestep += 1
-
             if self.df['NormTime'].iloc[self.timestep] == float(0.0):
                 done = True
 
@@ -146,9 +114,10 @@ class CMAPSSEnv(gym.Env):
             "Current observation": self.df.iloc[self.timestep,1:].tolist(),
             "New state": list(self.decoder_model.predict(action, verbose=0)[0]),
         }
+        print(env_snapshot)
 
-    def _reward(self, est_state, rec_state):
-        return -mean_squared_error(est_state, rec_state, squared=False)
+    def _reward(self, est_state, rec_state, latent_x, act):
+        return -(mean_squared_error(est_state, rec_state, squared=True) - mean_squared_error(act, latent_x, squared=True))**2
 
 
 if __name__ == "__main__":
@@ -191,6 +160,7 @@ if __name__ == "__main__":
     #print("env_config: ", env_config)
 
     env = CMAPSSEnv(**env_config)
+    env = gym.wrappers.FrameStack(env, const.num_frames)
 
     total_cost = 0
     

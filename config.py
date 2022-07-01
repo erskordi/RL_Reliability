@@ -9,6 +9,7 @@ class Config(object):
         self.prev_step_units = [0, self.num_units[0], self.num_units[0]+self.num_units[1]]
         self.step = ["VAE", "RL", "EVAL"]
         self.VAE_neurons = [256, 128, 64]
+        self.num_frames = 40
 
         # Parameters for VAEs
         self.latent_dim = 2

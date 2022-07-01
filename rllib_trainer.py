@@ -4,6 +4,7 @@ import os
 import pickle
 import sys
 
+import gym
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -16,7 +17,7 @@ from ray import tune, serve
 
 from data_prep import DataPrep
 from env import CMAPSSEnv
-from tf_decoder_model import TFDecoderModel
+from tf_serve_models import TFEncoderDecoderModel
 from VAE_dense import *
 
 
@@ -24,6 +25,7 @@ from VAE_dense import *
 parser = argparse.ArgumentParser(description="Build RL agent")
 parser.add_argument("--num-cpus", type=int, default=0)
 parser.add_argument("--num-gpus", type=int, default=0)
+parser.add_argument("--num-frames", type=int, default=20)
 parser.add_argument("--tune-log-level", type=str, default="INFO")
 parser.add_argument("--env-logging", action="store_true")
 parser.add_argument("--restore", type=str, default=None)
@@ -33,25 +35,19 @@ args = parser.parse_args()
 ray.init()
 
 ##### Load and configure problem instance #####
-file_path = "CMAPSSData/train_FD002.txt"
-num_settings = 3
-num_sensors = 21
-num_units = 40
-prev_step_units = 200
-step = "RL"
-
-neurons = [64, 32, 16, 8]
+const = Config()
 
 # Data prep
-data = DataPrep(file=file_path,
-                num_settings=num_settings, 
-                num_sensors=num_sensors, 
-                num_units=num_units, 
-                prev_step_units=prev_step_units,
-                step=step,
+data = DataPrep(file = const.file_path,
+                num_settings = const.num_settings,
+                num_sensors = const.num_sensors,
+                num_units = const.num_units[1],
+                prev_step_units = const.prev_step_units[1],
+                step = const.step[1],
                 normalization_type="01")
 
 df = data.ReadData()
+
 
 # List of engine lifetimes
 engine_lives = df.groupby(df['Unit']).size()
@@ -60,19 +56,30 @@ num_engines = len(engine_lives)
 
 # Load options
 serve.start()
-TFDecoderModel.deploy('./saved_models/decoder')
+TFEncoderDecoderModel.deploy(['./saved_models/encoder','./saved_models/decoder'])
 
+const = Config()
+neurons = const.VAE_neurons
+
+# Environment types
+env_types = ["batch", "intertemporal"]
+
+##########################################
 env_config = {
     "df": df,
     "timestep": 0,
-    "obs_size": num_settings+num_sensors+1,
+    "obs_size": const.num_settings+const.num_sensors+1,
     "engines": num_engines,
     "engine_lives": engine_lives, 
-    "decoder_model": None,
+    "models": [None, None],
+    "env_type": env_types[1],
 }
 
+#print("env_config: ", env_config)
+
 env_name = "CMAPSS_env"
-register_env(env_name, lambda config: CMAPSSEnv(**env_config))
+env_wrapper_config = gym.wrappers.FrameStack(CMAPSSEnv(**env_config), const.num_frames)
+register_env(env_name, lambda config: env_wrapper_config)
 
 
 ##### Run TUNE experiments #####
@@ -90,7 +97,13 @@ tune.run(
         "num_workers": args.num_cpus,
         "num_gpus": args.num_gpus,
         "log_level": args.tune_log_level,
-        #"train_batch_size": np.sum(engine_lives),
+        "rollout_fragment_length": 4000 // args.num_cpus,
+        "horizon": np.sum(engine_lives),
         "ignore_worker_failures": True,
+        "model":{
+            "fcnet_hiddens": const.VAE_neurons,
+            "fcnet_activation": "relu",
+            "free_log_std": True,
+        }
     }
 )
