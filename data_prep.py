@@ -52,7 +52,7 @@ class DataPrep(object):
             df = df.reset_index(drop=True) # Necessary for setting index back to 0
         RunTimes = self._UnitRunTime(df, column_names)
         self._FeatureSelection(df)
-        normalized_values = self._FeatureStandardize(df)
+        normalized_values = self._FeatureStandardize(df, RunTimes)
         normalized_time = self._TimeNormalize(df, RunTimes)
 
         # Include condition column, all values zero except in system failure (turns to 1)
@@ -82,11 +82,16 @@ class DataPrep(object):
         cols_to_drop = nunique[nunique == 1].index
         df.drop(cols_to_drop, axis=1)
 
-    def _FeatureStandardize(self, df) -> DataFrame:
+    def _FeatureStandardize(self, df, run_times) -> DataFrame:
         if self.normalization_type == "01":
-            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0).expanding().mean()
+            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0)
         else:
             normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.mean(x))/np.std(x), axis=0)
+
+        cntr = 0
+        for engine in range(len(run_times)):
+            normalized_values.iloc[cntr:cntr+run_times.iloc[engine],:] = normalized_values.iloc[cntr:cntr+run_times.iloc[engine],:].expanding().mean()
+            cntr += run_times.iloc[engine]
 
         return normalized_values
 
@@ -153,6 +158,9 @@ class Vec2Img(object):
 
 
 if __name__ == "__main__":
+
+    import matplotlib.pyplot as plt
+
     file_path = "CMAPSSData/train_FD002.txt"
     num_settings = 3
     num_sensors = 21
@@ -170,6 +178,8 @@ if __name__ == "__main__":
     
     df = data.ReadData()
     print(df)
+    plt.plot(df['Sensor1'])
+    plt.show()
     
     """
     image_data = Vec2Img(df=df,
