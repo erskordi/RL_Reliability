@@ -90,6 +90,8 @@ class CMAPSSEnv(gym.Env):
         """ Reconstructed state given true X"""    
         #_ = reconstructed.json()['predictions'][0][0]
         reconstructed_state = reconstructed.json()['predictions'][1][0]
+
+        #print(new_state, type(new_state), reconstructed_state, type(reconstructed_state))
         
         """New state excluding the RUL estimate (not part of agent training)"""
         reward = self._reward(new_state, reconstructed_state, actual_latent_x[0], action)
@@ -116,11 +118,21 @@ class CMAPSSEnv(gym.Env):
         }
         print(env_snapshot)
 
-    def _reward(self, est_state, rec_state, latent_x, act):
-        return -(mean_squared_error(est_state, rec_state, squared=True) - mean_squared_error(act, latent_x, squared=True))**2
+    def _reward(self, est_state, rec_state, latent_x, act, latent=False):
+        """
+        Reward function can be also augmented for minimizing the error between the actual latent state as derived
+        from the encoder with the action proposed from the policy network. Here we don't use that, but it can be 
+        seamlessly added.
+        """
+        if latent:
+            return -mean_squared_error(est_state, rec_state, squared=True) - mean_squared_error(act, latent_x, squared=True)
+        else:
+            return -mean_squared_error(est_state, rec_state, squared=True)
 
 
 if __name__ == "__main__":
+    import time
+
     serve.start()
     TFEncoderDecoderModel.deploy(['./saved_models/encoder','./saved_models/decoder'])
     
@@ -154,7 +166,7 @@ if __name__ == "__main__":
         "engines": num_engines,
         "engine_lives": engine_lives, 
         "models": [None, None],
-        "env_type": env_types[0],
+        "env_type": env_types[1],
     }
 
     #print("env_config: ", env_config)
@@ -184,6 +196,7 @@ if __name__ == "__main__":
             total_cost += rew
             cntr += 1
             print(rew, done)
+            time.sleep(1)
             if done:
                 break
         print(total_cost)
