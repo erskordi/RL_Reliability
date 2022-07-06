@@ -84,15 +84,16 @@ class DataPrep(object):
 
     def _FeatureStandardize(self, df, run_times) -> DataFrame:
         if self.normalization_type == "01":
-            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0)
+            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0).expanding().mean()
         else:
             normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.mean(x))/np.std(x), axis=0)
 
+        """
         cntr = 0
         for engine in range(len(run_times)):
-            normalized_values.iloc[cntr:cntr+run_times.iloc[engine],:] = normalized_values.iloc[cntr:cntr+run_times.iloc[engine],:].expanding().mean()
+            normalized_values.iloc[cntr:cntr+run_times.iloc[engine],:] = normalized_values.iloc[cntr:cntr+run_times.iloc[engine],:]
             cntr += run_times.iloc[engine]
-
+        """
         return normalized_values
 
     def _TimeNormalize(self, df, run_times) -> DataFrame:
