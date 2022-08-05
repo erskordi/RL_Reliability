@@ -29,6 +29,8 @@ requests
 scikit-learn
 argparse
 jupyter
+matplotlib
+bisect
 ```
 
 Contact [Erotokritos Skordilis](mailto:sge12@miami.edu) for any questions/comments.
