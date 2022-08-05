@@ -90,7 +90,7 @@ tune.run(
     checkpoint_at_end=True,
     checkpoint_score_attr="episode_reward_mean",
     keep_checkpoints_num=50,
-    stop={"training_iteration": 10000},
+    stop={"training_iteration": 100},
     restore=args.restore,
     config={
         "env": env_name,
@@ -98,10 +98,10 @@ tune.run(
         "num_gpus": args.num_gpus,
         "log_level": args.tune_log_level,
         "rollout_fragment_length": 4000 // args.num_cpus,
-        "horizon": np.sum(engine_lives),
+        #"horizon": np.sum(engine_lives),
         "ignore_worker_failures": True,
         "model":{
-            "fcnet_hiddens": const.VAE_neurons,
+            "fcnet_hiddens": const.policy_neurons,
             "fcnet_activation": "relu",
             "free_log_std": True,
         }

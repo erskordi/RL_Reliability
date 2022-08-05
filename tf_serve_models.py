@@ -18,7 +18,7 @@ class TFEncoderDecoderModel:
         self.model_path = model_path
         self.encoder_model = tf.keras.models.load_model(model_path[0], compile=False)
         self.decoder_model = tf.keras.models.load_model(model_path[1], compile=False)
-        print(self.encoder_model.summary(), self.decoder_model.summary())
+        #print(self.encoder_model.summary(), self.decoder_model.summary())
 
     async def __call__(self, starlette_request):
         const = Config()

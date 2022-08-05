@@ -88,12 +88,6 @@ class DataPrep(object):
         else:
             normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.mean(x))/np.std(x), axis=0)
 
-        """
-        cntr = 0
-        for engine in range(len(run_times)):
-            normalized_values.iloc[cntr:cntr+run_times.iloc[engine],:] = normalized_values.iloc[cntr:cntr+run_times.iloc[engine],:]
-            cntr += run_times.iloc[engine]
-        """
         return normalized_values
 
     def _TimeNormalize(self, df, run_times) -> DataFrame:
@@ -162,6 +156,8 @@ if __name__ == "__main__":
 
     import matplotlib.pyplot as plt
 
+    plott = True
+
     file_path = "CMAPSSData/train_FD002.txt"
     num_settings = 3
     num_sensors = 21
@@ -179,8 +175,25 @@ if __name__ == "__main__":
     
     df = data.ReadData()
     print(df)
-    plt.plot(df['Sensor1'])
-    plt.show()
+
+    if plott:
+        fig, axs = plt.subplots(2, 2, figsize=(10,10))
+        fig.suptitle('True vs Estimated Measurements')
+        #plt.rcParams["figure.figsize"] = (10,10)
+
+        axs[0, 0].plot(df['Sensor1'])
+        axs[0, 0].title.set_text('Sensor 1')
+
+        axs[0, 1].plot(df['Sensor5'])
+        axs[0, 1].title.set_text('Sensor 5')
+
+        axs[1, 0].plot(df['Sensor15'])
+        axs[1, 0].title.set_text('Sensor 15')
+
+        axs[1, 1].plot(df['OpSetting1'])
+        axs[1, 1].title.set_text('Operational Setting 1')
+        
+        plt.show()
     
     """
     image_data = Vec2Img(df=df,
