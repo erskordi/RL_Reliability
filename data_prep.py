@@ -1,5 +1,7 @@
 from operator import index
 import copy
+from re import L
+from select import select
 import numpy as np
 import pandas as pd
 from itertools import chain
@@ -41,6 +43,8 @@ class DataPrep(object):
         df = pd.read_table(self.file, header=None, sep="\s+")
         column_names = self._ColNames()
         df.columns = column_names
+        df['OpCategorical'] = self._OpSettings_Cat(df)
+        
         if self.step == "VAE":
             df = df[df[column_names[0]] <= self.num_units]
         elif self.step == "RL":
@@ -54,13 +58,13 @@ class DataPrep(object):
         self._FeatureSelection(df)
         normalized_values = self._FeatureStandardize(df, RunTimes)
         normalized_time = self._TimeNormalize(df, RunTimes)
+        
 
         # Include condition column, all values zero except in system failure (turns to 1)
         #df['Condition'] = [0 if i not in (np.cumsum(RunTimes.values)-1) else 1 for i in range(len(df))]
 
         new_df = self._FinalDF(df, normalized_time, normalized_values)
-
-        
+        new_df.drop(['OpSetting1','OpSetting2','OpSetting3'], axis=1, inplace=True)
 
         return new_df
 
@@ -84,9 +88,9 @@ class DataPrep(object):
 
     def _FeatureStandardize(self, df, run_times) -> DataFrame:
         if self.normalization_type == "01":
-            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0).expanding().mean()
+            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.min(x))/(np.max(x) - np.min(x)), axis=0).expanding().mean().round(2)
         else:
-            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.mean(x))/np.std(x), axis=0)
+            normalized_values = df[self.setting_measurement_names].apply(lambda x: (x - np.mean(x))/np.std(x), axis=0).round(2)
 
         return normalized_values
 
@@ -106,14 +110,42 @@ class DataPrep(object):
             normalized_time.append(chunk[len(chunk)-1::-1])
             cntr += run_times[units_cntr+i]
         normalized_time = list(chain(*normalized_time))
-        normalized_time = pd.DataFrame(normalized_time, columns=['NormTime'])
+        normalized_time = pd.DataFrame(normalized_time, columns=['NormTime']).round(4)
 
         return normalized_time
+    
+    def _OpSettings_Cat(self, df):
+        
+        settings_df = df[self.operational_settings].copy()
+        settings_df['OpSetting1'] = settings_df['OpSetting1'].round()
+        settings_df['OpSetting2'] = settings_df['OpSetting2'].round(2)
+        settings_df['OpSetting3'] = settings_df['OpSetting3'].round()
+        n_uniques = settings_df.groupby(by=self.operational_settings).nunique()
+
+        OpCondCategories = {tuple(n_uniques.iloc[i].name):i for i in range(len(n_uniques))}
+
+        def select_cat(d, row):
+            if (row['OpSetting1'],row['OpSetting2'],row['OpSetting3']) == list(d.keys())[0]:
+                return 0
+            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[1]:
+                return 1
+            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[2]:
+                return 2
+            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[3]:
+                return 3
+            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[4]:
+                return 4
+            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[5]:
+                return 5        
+
+        return settings_df.apply(lambda row: select_cat(OpCondCategories, row), axis=1)
 
     def _FinalDF(self, df, normalized_time, normalized_values) -> DataFrame:
         #new_df = pd.concat([df['Unit'], df['Condition'], normalized_time, normalized_values], axis=1)
-        new_df = pd.concat([df['Unit'], normalized_time, normalized_values], axis=1)
-
+        dummy_ = pd.get_dummies(df['OpCategorical'], prefix='OpSetting')
+        self.setting_measurement_names = list(chain(*[dummy_.columns, self.sensors]))
+        new_df = pd.concat([df['Unit'],dummy_, normalized_time, normalized_values], axis=1)
+        
         return new_df
 
 class Vec2Img(object):
@@ -156,7 +188,7 @@ if __name__ == "__main__":
 
     import matplotlib.pyplot as plt
 
-    plott = True
+    plott = False
 
     file_path = "CMAPSSData/train_FD002.txt"
     num_settings = 3
@@ -174,7 +206,7 @@ if __name__ == "__main__":
                     normalization_type="01")
     
     df = data.ReadData()
-    print(df)
+    print(df.columns)
 
     if plott:
         fig, axs = plt.subplots(2, 2, figsize=(10,10))

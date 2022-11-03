@@ -3,6 +3,7 @@ from tabnanny import verbose
 import os
 import numpy as np
 import pickle
+import sys
 import tensorflow as tf
 
 from tensorflow import keras
@@ -10,6 +11,8 @@ from tensorflow.python.keras.layers import deserialize, serialize
 from tensorflow.python.keras.saving import saving_utils
 
 from itertools import chain
+
+sys.path.insert(1, '../')
 
 from config import Config
 from data_prep import DataPrep, Vec2Img
@@ -135,7 +138,7 @@ def gen_seq(id_df, seq_length):
 
 if __name__ == "__main__":
 
-    checkpoint_path = 'saved_models/training/cp.ckpt'
+    checkpoint_path = './saved_models/training/cp.ckpt'
     checkpoint_dir = os.path.dirname(checkpoint_path)
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True,verbose=1)
 
@@ -143,7 +146,7 @@ if __name__ == "__main__":
     neurons = const.VAE_neurons
 
     # Data loading and preparation
-    data = DataPrep(file = const.file_path,
+    data = DataPrep(file = os.path.join("../",const.file_path),
                     num_settings = const.num_settings,
                     num_sensors = const.num_sensors,
                     num_units = const.num_units[0],
@@ -153,6 +156,8 @@ if __name__ == "__main__":
 
     df = data.ReadData()
     #print(df.shape)
+    const.image_size = len(df.columns)-1
+    const.sequence_length = 20
 
 
     sequence_length = const.sequence_length
@@ -166,5 +171,5 @@ if __name__ == "__main__":
 
     #print(sequence_input.shape)
 
-    vae = VAE_LSTM(sequence_input, const.image_size, 5, const.latent_dim, [const.units, const.dense_neurons])
+    vae = VAE_LSTM(sequence_input, const.image_size, const.sequence_length, const.latent_dim, [const.units, const.dense_neurons])
     vae.train_models()
