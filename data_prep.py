@@ -125,18 +125,7 @@ class DataPrep(object):
         OpCondCategories = {tuple(n_uniques.iloc[i].name):i for i in range(len(n_uniques))}
 
         def select_cat(d, row):
-            if (row['OpSetting1'],row['OpSetting2'],row['OpSetting3']) == list(d.keys())[0]:
-                return 0
-            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[1]:
-                return 1
-            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[2]:
-                return 2
-            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[3]:
-                return 3
-            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[4]:
-                return 4
-            elif (row['OpSetting1'],row['OpSetting2'],row['OpSetting3'])  == list(d.keys())[5]:
-                return 5        
+            return d[row['OpSetting1'],row['OpSetting2'],row['OpSetting3']]
 
         return settings_df.apply(lambda row: select_cat(OpCondCategories, row), axis=1)
 
@@ -206,7 +195,7 @@ if __name__ == "__main__":
                     normalization_type="01")
     
     df = data.ReadData()
-    print(df.columns)
+    print(df)
 
     if plott:
         fig, axs = plt.subplots(2, 2, figsize=(10,10))
